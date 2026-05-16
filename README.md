@@ -22,8 +22,8 @@ if you need help getting the script to work please open a github issue i will re
 
 # links and community
 
-chat controls windows 10 https://www youtube com/watch?v=njalgcqpp9e
+chat controls windows 10 https://www.youtube.com/watch?v=njalgcqpp9e
 
-youtube channel https://www youtube com/@reallyiron
+youtube channel https://www youtube.com/@reallyiron
 
-discord community https://discord gg/jhgzgf3pvb
+discord community https://discord.gg/jhgzgf3pvb
