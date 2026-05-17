@@ -1,6 +1,8 @@
 local obs = obslua
 local bit = require("bit")
 
+math.randomseed(os.time())
+
 local active_filters = {}
 
 local MAX_GLOBAL_SOURCES = 100
@@ -14,26 +16,17 @@ for i = 1, MAX_GLOBAL_SOURCES do
         speed_x = 5.0,
         speed_y = 5.0,
         auto_color = true,
-        dir_x = 1,
-        dir_y = 1,
+        dir_x = (math.random(0, 1) == 0 and -1 or 1),
+        dir_y = (math.random(0, 1) == 0 and -1 or 1),
+        speed_mod_x = (math.random(80, 120) / 100.0),
+        speed_mod_y = (math.random(80, 120) / 100.0),
         og_raw_x = 0,
         og_raw_y = 0,
         initialized = false,
-        color_idx = 1,
         scene_item_ref = nil,
         last_source = ""
     }
 end
-
-local bounce_colors = {
-    0xFF00FFFF,
-    0xFFFF0000,
-    0xFF0000FF,
-    0xFFFFFF00,
-    0xFF00FF00,
-    0xFFFF00FF,
-    0xFF8000FF
-}
 
 local function find_scene_item(scene, source_name)
     if not scene or not source_name or source_name == "" then return nil end
@@ -215,12 +208,13 @@ dvd_filter.create = function(settings, source)
     filter_data.speed_y = 5.0
     filter_data.auto_color = true
     
-    filter_data.dir_x = 1
-    filter_data.dir_y = 1
+    filter_data.dir_x = (math.random(0, 1) == 0 and -1 or 1)
+    filter_data.dir_y = (math.random(0, 1) == 0 and -1 or 1)
+    filter_data.speed_mod_x = (math.random(80, 120) / 100.0)
+    filter_data.speed_mod_y = (math.random(80, 120) / 100.0)
     filter_data.og_raw_x = 0
     filter_data.og_raw_y = 0
     filter_data.initialized = false
-    filter_data.color_idx = 1
     filter_data.scene_item_ref = nil
     
     table.insert(active_filters, filter_data)
@@ -405,8 +399,8 @@ local function main_bounce_loop()
         local min_y = math.min(r1y, r2y, r3y, r4y)
         local max_y = math.max(r1y, r2y, r3y, r4y)
 
-        local next_x = current_pos.x + (data.speed_x * data.dir_x)
-        local next_y = current_pos.y + (data.speed_y * data.dir_y)
+        local next_x = current_pos.x + (data.speed_x * (data.speed_mod_x or 1) * data.dir_x)
+        local next_y = current_pos.y + (data.speed_y * (data.speed_mod_y or 1) * data.dir_y)
         local bounced = false
 
         if (next_x + min_x) <= 0 then
@@ -444,9 +438,13 @@ local function main_bounce_loop()
             end
 
             if color_filter then
-                data.color_idx = (data.color_idx % #bounce_colors) + 1
+                local r = math.random(50, 255)
+                local g = math.random(50, 255)
+                local b = math.random(50, 255)
+                local random_color = 4278190080 + (b * 65536) + (g * 256) + r
+
                 local c_settings = obs.obs_data_create()
-                obs.obs_data_set_int(c_settings, "color_multiply", bounce_colors[data.color_idx])
+                obs.obs_data_set_int(c_settings, "color_multiply", random_color)
                 obs.obs_source_update(color_filter, c_settings)
                 obs.obs_data_release(c_settings)
                 obs.obs_source_release(color_filter)
