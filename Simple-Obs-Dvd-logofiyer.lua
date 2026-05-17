@@ -73,6 +73,10 @@ end
 function script_properties()
     local props = obs.obs_properties_create()
     
+    obs.obs_properties_add_button(props, "g_refresh_btn_top", "Refresh Source Lists", function(properties, property)
+        return true
+    end)
+    
     local p_advanced = obs.obs_properties_add_bool(props, "g_advanced", "Advanced Customization Mode")
     local p_show_all = obs.obs_properties_add_bool(props, "g_show_all", "Show Sources from ALL Scenes")
     local p_count = obs.obs_properties_add_int(props, "g_count", "Number of Target Sources", 1, MAX_GLOBAL_SOURCES, 1)
