@@ -67,7 +67,7 @@ local function find_scene_item_recursive(scene, target_name)
 end
 
 function script_description()
-    return "DVD Bounce Effect Ultimate\n\nPure Script Properties edition for high-performance and stability. Control up to 100 bouncing sources globally."
+    return "DVD Bounce Effect Ultimate\n\nControl panel for all bouncing sources. Select a source and enable Dvdify to start bouncing."
 end
 
 function script_properties()
@@ -200,7 +200,7 @@ function script_properties()
     obs.obs_property_set_modified_callback(p_advanced, refresh_ui)
     
     for i = 1, MAX_GLOBAL_SOURCES do
-        local p_active = obs.obs_properties_add_bool(props, "g_active_" .. i, "Enable DVDifyer " .. i)
+        local p_active = obs.obs_properties_add_bool(props, "g_active_" .. i, "Dvdify Source " .. i)
         
         local p_source = obs.obs_properties_add_list(props, "g_source_" .. i, "Select Source", obs.OBS_COMBO_TYPE_EDITABLE, obs.OBS_COMBO_FORMAT_STRING)
         obs.obs_property_list_add_string(p_source, "", "")
