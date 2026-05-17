@@ -9,27 +9,36 @@ local MAX_GLOBAL_SOURCES = 100
 local global_targets = {}
 local global_target_count = 1
 
+local function randomize_velocity()
+    local angle = math.random() * math.pi * 2
+    -- Ensure the angle isn't too vertical or horizontal to prevent boring bounces
+    while math.abs(math.cos(angle)) < 0.2 or math.abs(math.sin(angle)) < 0.2 do
+        angle = math.random() * math.pi * 2
+    end
+    return math.cos(angle), math.sin(angle)
+end
+
 for i = 1, MAX_GLOBAL_SOURCES do
+    local vx, vy = randomize_velocity()
     global_targets[i] = {
         active = false,
         source_name = "",
         speed_x = 5.0,
         speed_y = 5.0,
         auto_color = true,
-        dir_x = (math.random(0, 1) == 0 and -1 or 1),
-        dir_y = (math.random(0, 1) == 0 and -1 or 1),
-        speed_mod_x = (math.random(80, 120) / 100.0),
-        speed_mod_y = (math.random(80, 120) / 100.0),
+        vel_x = vx,
+        vel_y = vy,
         og_raw_x = 0,
         og_raw_y = 0,
         initialized = false,
-        scene_item_ref = nil,
+        color_idx = 1,
         last_source = ""
     }
 end
 
-local function find_scene_item(scene, source_name)
-    if not scene or not source_name or source_name == "" then return nil end
+-- Custom recursive search to find sources hidden inside Groups
+local function find_scene_item_recursive(scene, target_name)
+    if not scene or not target_name or target_name == "" then return nil end
     local items = obs.obs_scene_enum_items(scene)
     if not items then return nil end
     
@@ -38,9 +47,18 @@ local function find_scene_item(scene, source_name)
         local source = obs.obs_sceneitem_get_source(item)
         if source then
             local name = obs.obs_source_get_name(source)
-            if name == source_name then
+            if name == target_name then
                 found = item
                 break
+            end
+            
+            local unversioned_id = obs.obs_source_get_unversioned_id(source)
+            if unversioned_id == "group" then
+                local group_scene = obs.obs_group_from_source(source)
+                if group_scene then
+                    found = find_scene_item_recursive(group_scene, target_name)
+                    if found then break end
+                end
             end
         end
     end
@@ -104,15 +122,27 @@ function script_properties()
     end
     
     obs.obs_properties_add_button(props, "g_reset_btn", "Reset All Global Positions", function(properties, property)
+        local current_scene_source = obs.obs_frontend_get_current_scene()
+        if not current_scene_source then return true end
+        local scene = obs.obs_scene_from_source(current_scene_source)
+        if not scene then
+            obs.obs_source_release(current_scene_source)
+            return true
+        end
+
         for i = 1, MAX_GLOBAL_SOURCES do
             local gd = global_targets[i]
-            if gd.initialized and gd.scene_item_ref then
-                local pos = obs.vec2()
-                pos.x = gd.og_raw_x
-                pos.y = gd.og_raw_y
-                obs.obs_sceneitem_set_pos(gd.scene_item_ref, pos)
+            if gd.initialized and gd.source_name and gd.source_name ~= "" then
+                local scene_item = find_scene_item_recursive(scene, gd.source_name)
+                if scene_item then
+                    local pos = obs.vec2()
+                    pos.x = gd.og_raw_x
+                    pos.y = gd.og_raw_y
+                    obs.obs_sceneitem_set_pos(scene_item, pos)
+                end
             end
         end
+        obs.obs_source_release(current_scene_source)
         return true
     end)
     
@@ -178,14 +208,34 @@ dvd_filter.get_properties = function(data)
     obs.obs_properties_add_bool(props, "auto_color", "Change Color on Wall Hit")
 
     obs.obs_properties_add_button(props, "reset_btn", "Reset Position to Original", function(properties, property)
+        local current_scene_source = obs.obs_frontend_get_current_scene()
+        if not current_scene_source then return true end
+        local scene = obs.obs_scene_from_source(current_scene_source)
+        if not scene then
+            obs.obs_source_release(current_scene_source)
+            return true
+        end
+
         for _, f in ipairs(active_filters) do
-            if f.initialized and f.scene_item_ref then
-                local pos = obs.vec2()
-                pos.x = f.og_raw_x
-                pos.y = f.og_raw_y
-                obs.obs_sceneitem_set_pos(f.scene_item_ref, pos)
+            if f.initialized and f.source then
+                local target_name = f.source_override
+                if not target_name or target_name == "" then
+                    local parent = obs.obs_filter_get_parent(f.source)
+                    if parent then target_name = obs.obs_source_get_name(parent) end
+                end
+                
+                if target_name and target_name ~= "" then
+                    local scene_item = find_scene_item_recursive(scene, target_name)
+                    if scene_item then
+                        local pos = obs.vec2()
+                        pos.x = f.og_raw_x
+                        pos.y = f.og_raw_y
+                        obs.obs_sceneitem_set_pos(scene_item, pos)
+                    end
+                end
             end
         end
+        obs.obs_source_release(current_scene_source)
         return true
     end)
     return props
@@ -208,14 +258,13 @@ dvd_filter.create = function(settings, source)
     filter_data.speed_y = 5.0
     filter_data.auto_color = true
     
-    filter_data.dir_x = (math.random(0, 1) == 0 and -1 or 1)
-    filter_data.dir_y = (math.random(0, 1) == 0 and -1 or 1)
-    filter_data.speed_mod_x = (math.random(80, 120) / 100.0)
-    filter_data.speed_mod_y = (math.random(80, 120) / 100.0)
+    local vx, vy = randomize_velocity()
+    filter_data.vel_x = vx
+    filter_data.vel_y = vy
     filter_data.og_raw_x = 0
     filter_data.og_raw_y = 0
     filter_data.initialized = false
-    filter_data.scene_item_ref = nil
+    filter_data.color_idx = 1
     
     table.insert(active_filters, filter_data)
     return filter_data
@@ -288,9 +337,8 @@ local function main_bounce_loop()
             end
 
             if target_name and target_name ~= "" then
-                local scene_item = find_scene_item(scene, target_name)
+                local scene_item = find_scene_item_recursive(scene, target_name)
                 if scene_item then
-                    data.scene_item_ref = scene_item
                     local actual_source = obs.obs_sceneitem_get_source(scene_item)
                     table.insert(bounce_tasks, { data = data, scene_item = scene_item, source = actual_source })
                 end
@@ -301,9 +349,8 @@ local function main_bounce_loop()
     for i = 1, MAX_GLOBAL_SOURCES do
         local gd = global_targets[i]
         if gd.active and gd.source_name and gd.source_name ~= "" then
-            local scene_item = find_scene_item(scene, gd.source_name)
+            local scene_item = find_scene_item_recursive(scene, gd.source_name)
             if scene_item then
-                gd.scene_item_ref = scene_item
                 local source = obs.obs_sceneitem_get_source(scene_item)
                 if source then
                     table.insert(bounce_tasks, { data = gd, scene_item = scene_item, source = source })
@@ -344,8 +391,10 @@ local function main_bounce_loop()
         local item_h = base_h * current_scale.y
 
         if bounds_type ~= 0 then 
-            item_w = bounds.x
-            item_h = bounds.y
+            local sign_x = current_scale.x < 0 and -1 or 1
+            local sign_y = current_scale.y < 0 and -1 or 1
+            item_w = bounds.x * sign_x
+            item_h = bounds.y * sign_y
         end
 
         local function has_flag(val, flag)
@@ -398,29 +447,56 @@ local function main_bounce_loop()
         local max_x = math.max(r1x, r2x, r3x, r4x)
         local min_y = math.min(r1y, r2y, r3y, r4y)
         local max_y = math.max(r1y, r2y, r3y, r4y)
+        
+        local obj_w = max_x - min_x
+        local obj_h = max_y - min_y
 
-        local next_x = current_pos.x + (data.speed_x * (data.speed_mod_x or 1) * data.dir_x)
-        local next_y = current_pos.y + (data.speed_y * (data.speed_mod_y or 1) * data.dir_y)
+        local next_x = current_pos.x + (data.speed_x * data.vel_x)
+        local next_y = current_pos.y + (data.speed_y * data.vel_y)
         local bounced = false
 
-        if (next_x + min_x) <= 0 then
-            next_x = -min_x
-            data.dir_x = math.abs(data.dir_x)
-            bounced = true
-        elseif (next_x + max_x) >= canvas_w then
-            next_x = canvas_w - max_x
-            data.dir_x = -math.abs(data.dir_x)
-            bounced = true
+        if obj_w <= canvas_w then
+            if (next_x + min_x) <= 0 then
+                next_x = -min_x
+                data.vel_x = math.abs(data.vel_x)
+                bounced = true
+            elseif (next_x + max_x) >= canvas_w then
+                next_x = canvas_w - max_x
+                data.vel_x = -math.abs(data.vel_x)
+                bounced = true
+            end
+        else
+            if (next_x + min_x) >= 0 then
+                next_x = -min_x
+                data.vel_x = -math.abs(data.vel_x)
+                bounced = true
+            elseif (next_x + max_x) <= canvas_w then
+                next_x = canvas_w - max_x
+                data.vel_x = math.abs(data.vel_x)
+                bounced = true
+            end
         end
 
-        if (next_y + min_y) <= 0 then
-            next_y = -min_y
-            data.dir_y = math.abs(data.dir_y)
-            bounced = true
-        elseif (next_y + max_y) >= canvas_h then
-            next_y = canvas_h - max_y
-            data.dir_y = -math.abs(data.dir_y)
-            bounced = true
+        if obj_h <= canvas_h then
+            if (next_y + min_y) <= 0 then
+                next_y = -min_y
+                data.vel_y = math.abs(data.vel_y)
+                bounced = true
+            elseif (next_y + max_y) >= canvas_h then
+                next_y = canvas_h - max_y
+                data.vel_y = -math.abs(data.vel_y)
+                bounced = true
+            end
+        else
+            if (next_y + min_y) >= 0 then
+                next_y = -min_y
+                data.vel_y = -math.abs(data.vel_y)
+                bounced = true
+            elseif (next_y + max_y) <= canvas_h then
+                next_y = canvas_h - max_y
+                data.vel_y = math.abs(data.vel_y)
+                bounced = true
+            end
         end
 
         current_pos.x = next_x
