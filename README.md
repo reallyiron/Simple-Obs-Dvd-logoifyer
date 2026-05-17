@@ -1,6 +1,6 @@
-# simple obs dvd logoifier
+# Simple OBS DVD Logo
 
-this is a lightweight easy-to-use obs studio script that adds a bouncing dvd logo effect to your streams or recordings you can customize it easily and it takes less than a minute to set up
+This is a light-weight easy to use OBS studio script that adds a bouncing dvd logo effect to your streams or recordings you can customize it easily and it takes less than a minute to set up
 
 # Do i need to credit you on my stream or recording?
 no you dont have to credit me just dont say its your script i worked hard for this script to work it took like me 500 trys to get ts to work
