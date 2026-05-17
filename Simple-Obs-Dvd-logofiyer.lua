@@ -73,7 +73,7 @@ end
 function script_properties()
     local props = obs.obs_properties_create()
     
-    local p_advanced = obs.obs_properties_add_bool(props, "g_advanced", "⚙️ Advanced Customization Mode")
+    local p_advanced = obs.obs_properties_add_bool(props, "g_advanced", "Advanced Customization Mode")
     local p_show_all = obs.obs_properties_add_bool(props, "g_show_all", "Show Sources from ALL Scenes")
     local p_count = obs.obs_properties_add_int(props, "g_count", "Number of Target Sources", 1, MAX_GLOBAL_SOURCES, 1)
     
@@ -200,7 +200,7 @@ function script_properties()
     obs.obs_property_set_modified_callback(p_advanced, refresh_ui)
     
     for i = 1, MAX_GLOBAL_SOURCES do
-        local p_active = obs.obs_properties_add_bool(props, "g_active_" .. i, "► Enable DVDifyer " .. i)
+        local p_active = obs.obs_properties_add_bool(props, "g_active_" .. i, "Enable DVDifyer " .. i)
         
         local p_source = obs.obs_properties_add_list(props, "g_source_" .. i, "Select Source", obs.OBS_COMBO_TYPE_EDITABLE, obs.OBS_COMBO_FORMAT_STRING)
         obs.obs_property_list_add_string(p_source, "", "")
