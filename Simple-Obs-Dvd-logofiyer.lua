@@ -6,6 +6,7 @@ math.randomseed(os.time())
 local MAX_GLOBAL_SOURCES = 100
 local global_targets = {}
 local global_target_count = 1
+local current_show_all = false
 
 local function randomize_velocity()
     local angle = math.random() * math.pi * 2
@@ -22,7 +23,10 @@ for i = 1, MAX_GLOBAL_SOURCES do
         source_name = "",
         speed_x = 5.0,
         speed_y = 5.0,
-        auto_color = true,
+        color_mode = 0,
+        fixed_color = 4278190335,
+        start_dir_x = 0,
+        start_dir_y = 0,
         vel_x = vx,
         vel_y = vy,
         og_raw_x = 0,
@@ -31,16 +35,6 @@ for i = 1, MAX_GLOBAL_SOURCES do
         last_source = ""
     }
 end
-
-local bounce_colors = {
-    0xFF00FFFF,
-    0xFFFF0000,
-    0xFF0000FF,
-    0xFFFFFF00,
-    0xFF00FF00,
-    0xFFFF00FF,
-    0xFF8000FF
-}
 
 local function find_scene_item_recursive(scene, target_name)
     if not scene or not target_name or target_name == "" then return nil end
@@ -76,43 +70,166 @@ function script_description()
     return "DVD Bounce Effect Ultimate\n\nPure Script Properties edition for high-performance and stability. Control up to 100 bouncing sources globally."
 end
 
-local function count_modified(props, prop, settings)
-    local count = obs.obs_data_get_int(settings, "g_count")
-    global_target_count = count
-    
-    for i = 1, MAX_GLOBAL_SOURCES do
-        local visible = (i <= count)
-        obs.obs_property_set_visible(obs.obs_properties_get(props, "g_active_" .. i), visible)
-        obs.obs_property_set_visible(obs.obs_properties_get(props, "g_source_" .. i), visible)
-        obs.obs_property_set_visible(obs.obs_properties_get(props, "g_speed_x_" .. i), visible)
-        obs.obs_property_set_visible(obs.obs_properties_get(props, "g_speed_y_" .. i), visible)
-        obs.obs_property_set_visible(obs.obs_properties_get(props, "g_auto_color_" .. i), visible)
-    end
-    return true
-end
-
 function script_properties()
     local props = obs.obs_properties_create()
     
+    local p_advanced = obs.obs_properties_add_bool(props, "g_advanced", "⚙️ Advanced Customization Mode")
+    local p_show_all = obs.obs_properties_add_bool(props, "g_show_all", "Show Sources from ALL Scenes")
     local p_count = obs.obs_properties_add_int(props, "g_count", "Number of Target Sources", 1, MAX_GLOBAL_SOURCES, 1)
-    obs.obs_property_set_modified_callback(p_count, count_modified)
     
-    local sources = obs.obs_enum_sources()
-    
-    for i = 1, MAX_GLOBAL_SOURCES do
-        local p_active = obs.obs_properties_add_bool(props, "g_active_" .. i, "Enable Target " .. i)
-        
-        local p_source = obs.obs_properties_add_list(props, "g_source_" .. i, "Target Source " .. i, obs.OBS_COMBO_TYPE_EDITABLE, obs.OBS_COMBO_FORMAT_STRING)
-        if sources ~= nil then
+    local source_names = {}
+    if current_show_all then
+        local sources = obs.obs_enum_sources()
+        if sources then
             for _, source in ipairs(sources) do
-                local name = obs.obs_source_get_name(source)
-                obs.obs_property_list_add_string(p_source, name, name)
+                table.insert(source_names, obs.obs_source_get_name(source))
+            end
+            obs.source_list_release(sources)
+        end
+    else
+        local current_scene_source = obs.obs_frontend_get_current_scene()
+        if current_scene_source then
+            local scene = obs.obs_scene_from_source(current_scene_source)
+            if scene then
+                local function collect_names(s)
+                    local items = obs.obs_scene_enum_items(s)
+                    if items then
+                        for _, item in ipairs(items) do
+                            local src = obs.obs_sceneitem_get_source(item)
+                            if src then
+                                table.insert(source_names, obs.obs_source_get_name(src))
+                                if obs.obs_source_get_unversioned_id(src) == "group" then
+                                    local grp = obs.obs_group_from_source(src)
+                                    if grp then collect_names(grp) end
+                                end
+                            end
+                        end
+                        obs.sceneitem_list_release(items)
+                    end
+                end
+                collect_names(scene)
+            end
+            obs.obs_source_release(current_scene_source)
+        end
+    end
+
+    local function refresh_ui(props, prop, settings)
+        local count = obs.obs_data_get_int(settings, "g_count")
+        local show_all = obs.obs_data_get_bool(settings, "g_show_all")
+        local is_advanced = obs.obs_data_get_bool(settings, "g_advanced")
+        global_target_count = count
+        current_show_all = show_all
+        
+        local dyn_source_names = {}
+        if show_all then
+            local sources = obs.obs_enum_sources()
+            if sources then
+                for _, source in ipairs(sources) do
+                    table.insert(dyn_source_names, obs.obs_source_get_name(source))
+                end
+                obs.source_list_release(sources)
+            end
+        else
+            local current_scene_source = obs.obs_frontend_get_current_scene()
+            if current_scene_source then
+                local scene = obs.obs_scene_from_source(current_scene_source)
+                if scene then
+                    local function collect_names(s)
+                        local items = obs.obs_scene_enum_items(s)
+                        if items then
+                            for _, item in ipairs(items) do
+                                local src = obs.obs_sceneitem_get_source(item)
+                                if src then
+                                    table.insert(dyn_source_names, obs.obs_source_get_name(src))
+                                    if obs.obs_source_get_unversioned_id(src) == "group" then
+                                        local grp = obs.obs_group_from_source(src)
+                                        if grp then collect_names(grp) end
+                                    end
+                                end
+                            end
+                            obs.sceneitem_list_release(items)
+                        end
+                    end
+                    collect_names(scene)
+                end
+                obs.obs_source_release(current_scene_source)
             end
         end
+
+        for i = 1, MAX_GLOBAL_SOURCES do
+            local visible = (i <= count)
+            obs.obs_property_set_visible(obs.obs_properties_get(props, "g_active_" .. i), visible)
+            
+            local p_source_list = obs.obs_properties_get(props, "g_source_" .. i)
+            obs.obs_property_set_visible(p_source_list, visible)
+            obs.obs_property_list_clear(p_source_list)
+            obs.obs_property_list_add_string(p_source_list, "", "")
+            for _, name in ipairs(dyn_source_names) do
+                obs.obs_property_list_add_string(p_source_list, name, name)
+            end
+            
+            obs.obs_property_set_visible(obs.obs_properties_get(props, "g_speed_x_" .. i), visible)
+            obs.obs_property_set_visible(obs.obs_properties_get(props, "g_speed_y_" .. i), visible)
+            
+            if visible and is_advanced then
+                obs.obs_property_set_visible(obs.obs_properties_get(props, "g_auto_color_" .. i), false)
+                obs.obs_property_set_visible(obs.obs_properties_get(props, "g_color_mode_" .. i), true)
+                local cmode = obs.obs_data_get_int(settings, "g_color_mode_" .. i)
+                obs.obs_property_set_visible(obs.obs_properties_get(props, "g_fixed_color_" .. i), (cmode == 1))
+                obs.obs_property_set_visible(obs.obs_properties_get(props, "g_dir_x_" .. i), true)
+                obs.obs_property_set_visible(obs.obs_properties_get(props, "g_dir_y_" .. i), true)
+            elseif visible and not is_advanced then
+                obs.obs_property_set_visible(obs.obs_properties_get(props, "g_auto_color_" .. i), true)
+                obs.obs_property_set_visible(obs.obs_properties_get(props, "g_color_mode_" .. i), false)
+                obs.obs_property_set_visible(obs.obs_properties_get(props, "g_fixed_color_" .. i), false)
+                obs.obs_property_set_visible(obs.obs_properties_get(props, "g_dir_x_" .. i), false)
+                obs.obs_property_set_visible(obs.obs_properties_get(props, "g_dir_y_" .. i), false)
+            else
+                obs.obs_property_set_visible(obs.obs_properties_get(props, "g_auto_color_" .. i), false)
+                obs.obs_property_set_visible(obs.obs_properties_get(props, "g_color_mode_" .. i), false)
+                obs.obs_property_set_visible(obs.obs_properties_get(props, "g_fixed_color_" .. i), false)
+                obs.obs_property_set_visible(obs.obs_properties_get(props, "g_dir_x_" .. i), false)
+                obs.obs_property_set_visible(obs.obs_properties_get(props, "g_dir_y_" .. i), false)
+            end
+        end
+        return true
+    end
+
+    obs.obs_property_set_modified_callback(p_count, refresh_ui)
+    obs.obs_property_set_modified_callback(p_show_all, refresh_ui)
+    obs.obs_property_set_modified_callback(p_advanced, refresh_ui)
+    
+    for i = 1, MAX_GLOBAL_SOURCES do
+        local p_active = obs.obs_properties_add_bool(props, "g_active_" .. i, "► Enable DVDifyer " .. i)
         
-        local p_sx = obs.obs_properties_add_float_slider(props, "g_speed_x_" .. i, "Horizontal Speed " .. i, 0.1, 50.0, 0.1)
-        local p_sy = obs.obs_properties_add_float_slider(props, "g_speed_y_" .. i, "Vertical Speed " .. i, 0.1, 50.0, 0.1)
-        local p_color = obs.obs_properties_add_bool(props, "g_auto_color_" .. i, "Change Color on Hit " .. i)
+        local p_source = obs.obs_properties_add_list(props, "g_source_" .. i, "Select Source", obs.OBS_COMBO_TYPE_EDITABLE, obs.OBS_COMBO_FORMAT_STRING)
+        obs.obs_property_list_add_string(p_source, "", "")
+        for _, name in ipairs(source_names) do
+            obs.obs_property_list_add_string(p_source, name, name)
+        end
+        
+        local p_sx = obs.obs_properties_add_float_slider(props, "g_speed_x_" .. i, "Horizontal Speed", 0.1, 50.0, 0.1)
+        local p_sy = obs.obs_properties_add_float_slider(props, "g_speed_y_" .. i, "Vertical Speed", 0.1, 50.0, 0.1)
+        
+        local p_color = obs.obs_properties_add_bool(props, "g_auto_color_" .. i, "Auto Color Change")
+        
+        local p_cmode = obs.obs_properties_add_list(props, "g_color_mode_" .. i, "Color Behavior", obs.OBS_COMBO_TYPE_LIST, obs.OBS_COMBO_FORMAT_INT)
+        obs.obs_property_list_add_int(p_cmode, "Random Colors on Hit", 0)
+        obs.obs_property_list_add_int(p_cmode, "Fixed Custom Color", 1)
+        obs.obs_property_list_add_int(p_cmode, "No Color Change", 2)
+        obs.obs_property_set_modified_callback(p_cmode, refresh_ui)
+        
+        local p_fcolor = obs.obs_properties_add_color(props, "g_fixed_color_" .. i, "Select Target Color")
+        
+        local p_dir_x = obs.obs_properties_add_list(props, "g_dir_x_" .. i, "Start X Direction", obs.OBS_COMBO_TYPE_LIST, obs.OBS_COMBO_FORMAT_INT)
+        obs.obs_property_list_add_int(p_dir_x, "Random", 0)
+        obs.obs_property_list_add_int(p_dir_x, "Force Right", 1)
+        obs.obs_property_list_add_int(p_dir_x, "Force Left", 2)
+        
+        local p_dir_y = obs.obs_properties_add_list(props, "g_dir_y_" .. i, "Start Y Direction", obs.OBS_COMBO_TYPE_LIST, obs.OBS_COMBO_FORMAT_INT)
+        obs.obs_property_list_add_int(p_dir_y, "Random", 0)
+        obs.obs_property_list_add_int(p_dir_y, "Force Down", 1)
+        obs.obs_property_list_add_int(p_dir_y, "Force Up", 2)
         
         local visible = (i <= global_target_count)
         obs.obs_property_set_visible(p_active, visible)
@@ -120,10 +237,10 @@ function script_properties()
         obs.obs_property_set_visible(p_sx, visible)
         obs.obs_property_set_visible(p_sy, visible)
         obs.obs_property_set_visible(p_color, visible)
-    end
-    
-    if sources ~= nil then
-        obs.source_list_release(sources)
+        obs.obs_property_set_visible(p_cmode, false)
+        obs.obs_property_set_visible(p_fcolor, false)
+        obs.obs_property_set_visible(p_dir_x, false)
+        obs.obs_property_set_visible(p_dir_y, false)
     end
     
     obs.obs_properties_add_button(props, "g_reset_btn", "Reset All Positions", function(properties, property)
@@ -157,6 +274,8 @@ end
 function script_update(settings)
     global_target_count = obs.obs_data_get_int(settings, "g_count")
     if global_target_count < 1 then global_target_count = 1 end
+    current_show_all = obs.obs_data_get_bool(settings, "g_show_all")
+    local is_advanced = obs.obs_data_get_bool(settings, "g_advanced")
     
     for i = 1, MAX_GLOBAL_SOURCES do
         local gd = global_targets[i]
@@ -164,7 +283,18 @@ function script_update(settings)
         gd.source_name = obs.obs_data_get_string(settings, "g_source_" .. i)
         gd.speed_x = obs.obs_data_get_double(settings, "g_speed_x_" .. i)
         gd.speed_y = obs.obs_data_get_double(settings, "g_speed_y_" .. i)
-        gd.auto_color = obs.obs_data_get_bool(settings, "g_auto_color_" .. i)
+        
+        if is_advanced then
+            gd.color_mode = obs.obs_data_get_int(settings, "g_color_mode_" .. i)
+            gd.fixed_color = obs.obs_data_get_int(settings, "g_fixed_color_" .. i)
+            gd.start_dir_x = obs.obs_data_get_int(settings, "g_dir_x_" .. i)
+            gd.start_dir_y = obs.obs_data_get_int(settings, "g_dir_y_" .. i)
+        else
+            local auto_col = obs.obs_data_get_bool(settings, "g_auto_color_" .. i)
+            gd.color_mode = auto_col and 0 or 2
+            gd.start_dir_x = 0
+            gd.start_dir_y = 0
+        end
         
         if gd.last_source ~= gd.source_name then
             gd.initialized = false
@@ -175,12 +305,18 @@ end
 
 function script_defaults(settings)
     obs.obs_data_set_default_int(settings, "g_count", 1)
+    obs.obs_data_set_default_bool(settings, "g_show_all", false)
+    obs.obs_data_set_default_bool(settings, "g_advanced", false)
     
     for i = 1, MAX_GLOBAL_SOURCES do
         obs.obs_data_set_default_bool(settings, "g_active_" .. i, false)
         obs.obs_data_set_default_double(settings, "g_speed_x_" .. i, 5.0)
         obs.obs_data_set_default_double(settings, "g_speed_y_" .. i, 5.0)
         obs.obs_data_set_default_bool(settings, "g_auto_color_" .. i, true)
+        obs.obs_data_set_default_int(settings, "g_color_mode_" .. i, 0)
+        obs.obs_data_set_default_int(settings, "g_fixed_color_" .. i, 4278190335)
+        obs.obs_data_set_default_int(settings, "g_dir_x_" .. i, 0)
+        obs.obs_data_set_default_int(settings, "g_dir_y_" .. i, 0)
     end
 end
 
@@ -285,6 +421,13 @@ local function main_bounce_loop()
         if not data.initialized then
             data.og_raw_x = current_pos.x
             data.og_raw_y = current_pos.y
+            
+            if data.start_dir_x == 1 then data.vel_x = math.abs(data.vel_x)
+            elseif data.start_dir_x == 2 then data.vel_x = -math.abs(data.vel_x) end
+            
+            if data.start_dir_y == 1 then data.vel_y = math.abs(data.vel_y)
+            elseif data.start_dir_y == 2 then data.vel_y = -math.abs(data.vel_y) end
+            
             data.initialized = true
         end
 
@@ -371,7 +514,7 @@ local function main_bounce_loop()
         current_pos.y = next_y
         obs.obs_sceneitem_set_pos(scene_item, current_pos)
 
-        if bounced and data.auto_color then
+        if bounced and data.color_mode ~= 2 then
             local color_filter = obs.obs_source_get_filter_by_name(parent, "DVD Color")
             
             if not color_filter then
@@ -382,13 +525,19 @@ local function main_bounce_loop()
             end
 
             if color_filter then
-                local r = math.random(50, 255)
-                local g = math.random(50, 255)
-                local b = math.random(50, 255)
-                local random_color = 4278190080 + (b * 65536) + (g * 256) + r
+                local final_color = 0xFFFFFFFF
+                
+                if data.color_mode == 0 then
+                    local r = math.random(50, 255)
+                    local g = math.random(50, 255)
+                    local b = math.random(50, 255)
+                    final_color = 4278190080 + (b * 65536) + (g * 256) + r
+                elseif data.color_mode == 1 then
+                    final_color = data.fixed_color
+                end
 
                 local c_settings = obs.obs_data_create()
-                obs.obs_data_set_int(c_settings, "color_multiply", random_color)
+                obs.obs_data_set_int(c_settings, "color_multiply", final_color)
                 obs.obs_source_update(color_filter, c_settings)
                 obs.obs_data_release(c_settings)
                 obs.obs_source_release(color_filter)
