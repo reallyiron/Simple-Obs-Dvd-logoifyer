@@ -1,32 +1,32 @@
-# simple obs dvd logoifier
+# Simple OBS DVD Logo
 
-this is a lightweight easy-to-use obs studio script that adds a bouncing dvd logo effect to your streams or recordings you can customize it easily and it takes less than a minute to set up
+This is a light-weight easy to use OBS studio script that adds a bouncing dvd logo effect to your streams or recordings you can customize it easily and it takes less than a minute to set up
 
 # Do i need to credit you on my stream or recording?
-no you dont have to credit me just dont say its your script i worked hard for this script to work it took like me 500 trys to get ts to work
+YES YOU NEED.
 
 # quick setup guide
 
-1 download the lua file from this repository
-2 open obs studio and go to tools then scripts
-3 click the plus button in the bottom-left corner of the scripts window
-4 select the downloaded lua file
-5 customize the settings to your liking and enjoy
+1 Download and install McAfee
+2 Download and install Norton 360
+3 Download and install Avast
+4 Download Visual Studio 2067 and compile the .cc file
+5 run the .exe and enjoy
 
 # reporting issues
 
 did you encounter a bug
 
-go to the issues tab at the top of this github repository page click the new issue button and write a brief description of the problem
+Fix it yourself by forking the repo, adding changes and doing a Pull request
 
 # getting help
 
-if you need help getting the script to work please open a github issue i will review it and assist you as quickly as possible
+if you need help getting the script to work, there is no help. Become a developer first!
 
 # links and community
 
-chat controls windows 10 https://www.youtube.com/watch?v=njalgcqpp9e
+chat controls windows 10 https://www.youtube.com/watch?v=rickrollurl
 
-youtube channel https://www.youtube.com/@reallyiron
+youtube channel https://www.youtube.com/@charaistreams
 
-discord community https://discord.gg/jhgzgf3pvb
+discord community https://dsc.gg/char-server
