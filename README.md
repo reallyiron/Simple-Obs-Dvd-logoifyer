@@ -3,7 +3,7 @@
 this is a lightweight easy-to-use obs studio script that adds a bouncing dvd logo effect to your streams or recordings you can customize it easily and it takes less than a minute to set up
 
 # Do i need to credit you on my stream or recording?
-no
+no, i left this project long time ago
 
 # quick setup guide
 
